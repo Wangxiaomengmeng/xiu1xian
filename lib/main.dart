@@ -7,7 +7,6 @@ import 'screens/home_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // 安卓状态栏透明适配
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
@@ -35,14 +34,12 @@ class MyApp extends StatelessWidget {
             primary: const Color(0xFFe94560),
             secondary: Colors.deepPurple.shade400,
           ),
-          // 页面切换动画优化
+          // 修复：移除重复条目，使用默认过渡
           pageTransitionsTheme: const PageTransitionsTheme(
             builders: {
               TargetPlatform.android: ZoomPageTransitionsBuilder(),
-              TargetPlatform.android: const CupertinoPageTransitionsBuilder(),
             },
           ),
-          // 水波纹颜色
           splashColor: const Color(0xFFe94560).withOpacity(0.2),
           highlightColor: const Color(0xFFe94560).withOpacity(0.1),
         ),
