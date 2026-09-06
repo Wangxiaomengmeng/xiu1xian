@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 
@@ -104,11 +105,61 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
-  Future<Map<String, dynamic>> uploadAvatar(File imageFile) async {
+  /// 根据文件扩展名推断 MediaType，兜底为 image/jpeg
+  MediaType _imageMediaType(String path, {String? mimeType}) {
+    if (mimeType != null && mimeType.contains('/')) {
+      final parts = mimeType.split('/');
+      return MediaType(parts[0], parts.length > 1 ? parts[1] : '');
+    }
+    final ext = path.toLowerCase().split('.').last;
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return MediaType('image', 'jpeg');
+      case 'png':
+        return MediaType('image', 'png');
+      case 'gif':
+        return MediaType('image', 'gif');
+      case 'webp':
+        return MediaType('image', 'webp');
+      case 'bmp':
+        return MediaType('image', 'bmp');
+      default:
+        return MediaType('image', 'jpeg');
+    }
+  }
+
+  MediaType _videoMediaType(String path, {String? mimeType}) {
+    if (mimeType != null && mimeType.contains('/')) {
+      final parts = mimeType.split('/');
+      return MediaType(parts[0], parts.length > 1 ? parts[1] : '');
+    }
+    final ext = path.toLowerCase().split('.').last;
+    switch (ext) {
+      case 'mp4':
+        return MediaType('video', 'mp4');
+      case 'mov':
+        return MediaType('video', 'quicktime');
+      case 'avi':
+        return MediaType('video', 'x-msvideo');
+      case 'mkv':
+        return MediaType('video', 'x-matroska');
+      case 'webm':
+        return MediaType('video', 'webm');
+      default:
+        return MediaType('video', 'mp4');
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadAvatar(File imageFile, {String? mimeType}) async {
     await _loadToken();
     final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/auth/avatar'));
     request.headers['Authorization'] = 'Bearer $_token';
-    request.files.add(await http.MultipartFile.fromPath('avatar', imageFile.path));
+    request.files.add(await http.MultipartFile.fromPath(
+      'avatar',
+      imageFile.path,
+      contentType: _imageMediaType(imageFile.path, mimeType: mimeType),
+    ));
     final streamed = await request.send();
     final res = await http.Response.fromStream(streamed);
     return jsonDecode(res.body);
@@ -298,11 +349,15 @@ class ApiService {
   }
 
   // 上传图片返回URL
-  Future<String?> uploadImage(File imageFile) async {
+  Future<String?> uploadImage(File imageFile, {String? mimeType}) async {
     await _loadToken();
     final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/posts/upload-image'));
     request.headers['Authorization'] = 'Bearer $_token';
-    request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
+    request.files.add(await http.MultipartFile.fromPath(
+      'image',
+      imageFile.path,
+      contentType: _imageMediaType(imageFile.path, mimeType: mimeType),
+    ));
     final streamed = await request.send();
     final res = await http.Response.fromStream(streamed);
     final data = jsonDecode(res.body);
@@ -310,11 +365,15 @@ class ApiService {
   }
 
   // 上传视频返回URL
-  Future<String?> uploadVideo(File videoFile) async {
+  Future<String?> uploadVideo(File videoFile, {String? mimeType}) async {
     await _loadToken();
     final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/posts/upload-video'));
     request.headers['Authorization'] = 'Bearer $_token';
-    request.files.add(await http.MultipartFile.fromPath('video', videoFile.path));
+    request.files.add(await http.MultipartFile.fromPath(
+      'video',
+      videoFile.path,
+      contentType: _videoMediaType(videoFile.path, mimeType: mimeType),
+    ));
     final streamed = await request.send();
     final res = await http.Response.fromStream(streamed);
     final data = jsonDecode(res.body);

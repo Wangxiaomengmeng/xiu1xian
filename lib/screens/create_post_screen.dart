@@ -14,7 +14,9 @@ class CreatePostScreen extends StatefulWidget {
 class _CreatePostScreenState extends State<CreatePostScreen> {
   final _contentCtrl = TextEditingController();
   final List<File> _images = [];
+  final List<String?> _imageMimeTypes = [];
   File? _video;
+  String? _videoMimeType;
   bool _submitting = false;
 
   Future<void> _pickImages() async {
@@ -27,7 +29,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     if (picked.isNotEmpty) {
       setState(() {
         for (final f in picked) {
-          if (_images.length < 9) _images.add(File(f.path));
+          if (_images.length < 9) {
+            _images.add(File(f.path));
+            _imageMimeTypes.add(f.mimeType);
+          }
         }
       });
     }
@@ -37,12 +42,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 60));
     if (picked != null) {
-      setState(() => _video = File(picked.path));
+      setState(() {
+        _video = File(picked.path);
+        _videoMimeType = picked.mimeType;
+      });
     }
   }
 
   void _removeImage(int index) {
-    setState(() => _images.removeAt(index));
+    setState(() {
+      _images.removeAt(index);
+      _imageMimeTypes.removeAt(index);
+    });
   }
 
   Future<void> _submit() async {
@@ -56,14 +67,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     try {
       // 先上传图片
       List<String> imageUrls = [];
-      for (final img in _images) {
-        final url = await api.uploadImage(img);
+      for (var i = 0; i < _images.length; i++) {
+        final url = await api.uploadImage(_images[i], mimeType: _imageMimeTypes[i]);
         if (url != null) imageUrls.add(url);
       }
       // 上传视频
       String? videoUrl;
       if (_video != null) {
-        videoUrl = await api.uploadVideo(_video!);
+        videoUrl = await api.uploadVideo(_video!, mimeType: _videoMimeType);
       }
       // 发布帖子
       final resp = await api.createPost(content, images: imageUrls, video: videoUrl);
@@ -158,7 +169,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       top: 4,
                       right: 4,
                       child: GestureDetector(
-                        onTap: () => setState(() => _video = null),
+                        onTap: () => setState(() {
+                          _video = null;
+                          _videoMimeType = null;
+                        }),
                         child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.close, color: Colors.white, size: 14)),
                       ),
                     ),

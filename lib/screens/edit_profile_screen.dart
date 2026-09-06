@@ -15,6 +15,7 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _nicknameCtrl = TextEditingController();
   File? _avatarFile;
+  String? _avatarMimeType;
   String? _existingAvatar;
   bool _saving = false;
 
@@ -35,7 +36,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       imageQuality: 80,
     );
     if (picked != null) {
-      setState(() => _avatarFile = File(picked.path));
+      setState(() {
+        _avatarFile = File(picked.path);
+        _avatarMimeType = picked.mimeType;
+      });
     }
   }
 
@@ -53,7 +57,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (resp['error'] != null) throw Exception(resp['error']);
       // 再上传头像（如果选了新的）
       if (_avatarFile != null) {
-        final avatarResp = await provider.api.uploadAvatar(_avatarFile!);
+        final avatarResp = await provider.api.uploadAvatar(_avatarFile!, mimeType: _avatarMimeType);
         if (avatarResp['error'] != null) throw Exception(avatarResp['error']);
       }
       await provider.loadUserInfo();

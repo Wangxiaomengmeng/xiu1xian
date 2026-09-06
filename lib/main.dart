@@ -32,7 +32,24 @@ class MyApp extends StatelessWidget {
           primaryColor: const Color(0xFFe94560),
           colorScheme: ColorScheme.dark(
             primary: const Color(0xFFe94560),
+            onPrimary: Colors.white,
             secondary: Colors.deepPurple.shade400,
+            onSecondary: Colors.white,
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              foregroundColor: Colors.white,
+            ),
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFe94560),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+            ),
           ),
           // 修复：移除重复条目，使用默认过渡
           pageTransitionsTheme: const PageTransitionsTheme(
