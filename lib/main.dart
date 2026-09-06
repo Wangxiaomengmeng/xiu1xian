@@ -39,7 +39,7 @@ class MyApp extends StatelessWidget {
           pageTransitionsTheme: const PageTransitionsTheme(
             builders: {
               TargetPlatform.android: ZoomPageTransitionsBuilder(),
-              TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+              TargetPlatform.android: CupertinoPageTransitionsBuilder(),
             },
           ),
           // 水波纹颜色
