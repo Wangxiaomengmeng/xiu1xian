@@ -6,6 +6,7 @@ import '../utils/format_utils.dart';
 import 'edit_profile_screen.dart';
 import 'inventory_screen.dart';
 import 'leaderboard_screen.dart';
+import 'ai_assistant_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -80,6 +81,7 @@ class ProfileScreen extends StatelessWidget {
           children: [
             Expanded(child: _quickEntry(Icons.backpack, '背包', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryScreen())))),
             Expanded(child: _quickEntry(Icons.emoji_events, '排行榜', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeaderboardScreen())))),
+            Expanded(child: _quickEntry(Icons.auto_awesome, 'AI助手', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AiAssistantScreen())))),
           ],
         ),
         const SizedBox(height: 16),
