@@ -28,7 +28,9 @@ class UserInfo {
 }
 
 class Player {
+  final int? userId;
   final String username;
+  final String? avatar;
   final int cultivation;
   final String realm;
   final int realmLevel;
@@ -53,7 +55,9 @@ class Player {
   final Map<String, dynamic> stats;
 
   Player({
+    this.userId,
     required this.username,
+    this.avatar,
     required this.cultivation,
     required this.realm,
     required this.realmLevel,
@@ -80,7 +84,9 @@ class Player {
 
   factory Player.fromJson(Map<String, dynamic> json) {
     return Player(
+      userId: json['userId'] != null ? (json['userId'] as num).toInt() : null,
       username: json['username'] ?? '',
+      avatar: json['avatar'],
       cultivation: (json['cultivation'] ?? 0).toInt(),
       realm: json['realm'] ?? '炼气期',
       realmLevel: (json['realmLevel'] ?? 1).toInt(),
@@ -302,8 +308,21 @@ class Comment {
   final String content;
   final String createdAt;
   final PostAuthor author;
+  final int? parentId;
+  final int likeCount;
+  final bool liked;
+  final List<Comment> replies;
 
-  Comment({required this.id, required this.content, required this.createdAt, required this.author});
+  Comment({
+    required this.id,
+    required this.content,
+    required this.createdAt,
+    required this.author,
+    this.parentId,
+    this.likeCount = 0,
+    this.liked = false,
+    this.replies = const [],
+  });
 
   factory Comment.fromJson(Map<String, dynamic> json) {
     return Comment(
@@ -311,6 +330,12 @@ class Comment {
       content: json['content'],
       createdAt: json['createdAt'] ?? '',
       author: PostAuthor.fromJson(json['author']),
+      parentId: json['parentId'],
+      likeCount: (json['likeCount'] ?? 0).toInt(),
+      liked: json['liked'] ?? false,
+      replies: json['replies'] != null
+          ? (json['replies'] as List).map((e) => Comment.fromJson(e)).toList()
+          : const [],
     );
   }
 }
@@ -381,6 +406,106 @@ class Equipment {
       rarity: json['rarity'],
       owned: json['owned'] ?? false,
       equipped: json['equipped'] ?? false,
+    );
+  }
+}
+
+// ===== 好友 & 聊天模型 =====
+
+class UserBrief {
+  final int id;
+  final String username;
+  final String nickname;
+  final String? avatar;
+
+  UserBrief({required this.id, required this.username, required this.nickname, this.avatar});
+
+  factory UserBrief.fromJson(Map<String, dynamic> json) {
+    return UserBrief(
+      id: json['id'],
+      username: json['username'] ?? '',
+      nickname: json['nickname'] ?? json['username'] ?? '',
+      avatar: json['avatar'],
+    );
+  }
+}
+
+class SearchUser extends UserBrief {
+  final String? friendship; // null/pending/accepted
+
+  SearchUser({required super.id, required super.username, required super.nickname, super.avatar, this.friendship});
+
+  factory SearchUser.fromJson(Map<String, dynamic> json) {
+    return SearchUser(
+      id: json['id'],
+      username: json['username'] ?? '',
+      nickname: json['nickname'] ?? json['username'] ?? '',
+      avatar: json['avatar'],
+      friendship: json['friendship'],
+    );
+  }
+}
+
+class FriendRequest {
+  final int id;
+  final UserBrief requester;
+  final String createdAt;
+
+  FriendRequest({required this.id, required this.requester, required this.createdAt});
+
+  factory FriendRequest.fromJson(Map<String, dynamic> json) {
+    return FriendRequest(
+      id: json['id'],
+      requester: UserBrief.fromJson(json['requester']),
+      createdAt: json['createdAt'] ?? '',
+    );
+  }
+}
+
+class ChatMessage {
+  final int id;
+  final int senderId;
+  final int receiverId;
+  final String type; // text/voice/image/video
+  final String content;
+  final bool isRead;
+  final String createdAt;
+
+  ChatMessage({
+    required this.id,
+    required this.senderId,
+    required this.receiverId,
+    required this.type,
+    required this.content,
+    required this.isRead,
+    required this.createdAt,
+  });
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      id: json['id'],
+      senderId: json['senderId'],
+      receiverId: json['receiverId'],
+      type: json['type'] ?? 'text',
+      content: json['content'] ?? '',
+      isRead: json['isRead'] ?? false,
+      createdAt: json['createdAt'] ?? '',
+    );
+  }
+}
+
+class Conversation {
+  final UserBrief partner;
+  final ChatMessage? lastMessage;
+  final int unreadCount;
+
+  Conversation({required this.partner, this.lastMessage, this.unreadCount = 0});
+
+  factory Conversation.fromJson(Map<String, dynamic> json) {
+    return Conversation(
+      partner: UserBrief.fromJson(json['partner']),
+      lastMessage: json['lastMessage'] != null ? ChatMessage.fromJson(json['lastMessage']) : null,
+      unreadCount: (json['unreadCount'] ?? 0).toInt(),
     );
   }
 }

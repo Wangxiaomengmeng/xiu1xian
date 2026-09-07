@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/models.dart';
 import '../services/game_provider.dart';
+import '../widgets/video_player_widget.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final int postId;
@@ -18,6 +19,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _loading = true;
   final _commentCtrl = TextEditingController();
   bool _sendingComment = false;
+  Comment? _replyingTo;
 
   @override
   void initState() {
@@ -60,15 +62,85 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     } catch (_) {}
   }
 
+  Future<void> _toggleCommentLike(Comment c, {bool isReply = false, int? parentIndex}) async {
+    try {
+      final resp = await context.read<GameProvider>().api.toggleCommentLike(widget.postId, c.id);
+      setState(() {
+        final updated = Comment(
+          id: c.id,
+          content: c.content,
+          createdAt: c.createdAt,
+          author: c.author,
+          parentId: c.parentId,
+          likeCount: resp['likeCount'] ?? c.likeCount,
+          liked: resp['liked'] ?? false,
+          replies: c.replies,
+        );
+        if (isReply && parentIndex != null) {
+          final replies = List<Comment>.from(_comments[parentIndex].replies);
+          final idx = replies.indexWhere((r) => r.id == c.id);
+          if (idx >= 0) replies[idx] = updated;
+          _comments[parentIndex] = Comment(
+            id: _comments[parentIndex].id,
+            content: _comments[parentIndex].content,
+            createdAt: _comments[parentIndex].createdAt,
+            author: _comments[parentIndex].author,
+            parentId: _comments[parentIndex].parentId,
+            likeCount: _comments[parentIndex].likeCount,
+            liked: _comments[parentIndex].liked,
+            replies: replies,
+          );
+        } else {
+          final idx = _comments.indexWhere((e) => e.id == c.id);
+          if (idx >= 0) _comments[idx] = updated;
+        }
+      });
+    } catch (_) {}
+  }
+
+  void _startReply(Comment c) {
+    setState(() => _replyingTo = c);
+    _commentCtrl.text = '';
+    FocusScope.of(context).requestFocus(FocusNode());
+  }
+
+  void _cancelReply() {
+    setState(() => _replyingTo = null);
+    _commentCtrl.clear();
+  }
+
   Future<void> _sendComment() async {
     final content = _commentCtrl.text.trim();
     if (content.isEmpty || _sendingComment) return;
     setState(() => _sendingComment = true);
     try {
-      final resp = await context.read<GameProvider>().api.addComment(widget.postId, content);
+      final resp = await context.read<GameProvider>().api.addComment(
+        widget.postId,
+        content,
+        parentId: _replyingTo?.id,
+      );
       if (resp['comment'] != null) {
+        final newComment = Comment.fromJson(resp['comment']);
         setState(() {
-          _comments.add(Comment.fromJson(resp['comment']));
+          if (_replyingTo != null) {
+            // 回复：挂到对应顶级评论的 replies 下
+            final parentIdx = _comments.indexWhere((c) => c.id == _replyingTo!.id || c.replies.any((r) => r.id == _replyingTo!.id));
+            if (parentIdx >= 0) {
+              final replies = List<Comment>.from(_comments[parentIdx].replies)..add(newComment);
+              _comments[parentIdx] = Comment(
+                id: _comments[parentIdx].id,
+                content: _comments[parentIdx].content,
+                createdAt: _comments[parentIdx].createdAt,
+                author: _comments[parentIdx].author,
+                parentId: _comments[parentIdx].parentId,
+                likeCount: _comments[parentIdx].likeCount,
+                liked: _comments[parentIdx].liked,
+                replies: replies,
+              );
+            }
+          } else {
+            _comments.add(newComment);
+          }
           if (_post != null) {
             _post = Post(
               id: _post!.id,
@@ -84,6 +156,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           }
         });
         _commentCtrl.clear();
+        _replyingTo = null;
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
@@ -148,7 +221,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         // 视频
                         if (_post?.video != null && _post!.video!.isNotEmpty) ...[
                           const SizedBox(height: 12),
-                          Container(height: 200, decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(8)), child: const Center(child: Icon(Icons.play_circle_fill, color: Colors.white54, size: 60))),
+                          VideoPlayerWidget(videoUrl: provider.api.fullUrl(_post!.video!), height: 220),
                         ],
                         const SizedBox(height: 16),
                         // 点赞栏
@@ -186,7 +259,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         if (_comments.isEmpty)
                           const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('还没有评论，快来抢沙发！', style: TextStyle(color: Colors.white38))))
                         else
-                          ..._comments.map((c) => _buildCommentItem(c, provider)),
+                          ..._comments.asMap().entries.map((entry) => _buildCommentItem(entry.value, provider, entry.key)),
                       ],
                     ),
                   ),
@@ -196,30 +269,50 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: const BoxDecoration(color: Color(0xFF1a1a2e), border: Border(top: BorderSide(color: Colors.white10))),
                   child: SafeArea(
-                    child: Row(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _commentCtrl,
-                            style: const TextStyle(color: Colors.white),
-                            decoration: InputDecoration(
-                              hintText: '写评论...',
-                              hintStyle: const TextStyle(color: Colors.white38),
-                              filled: true,
-                              fillColor: Colors.white10,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                        if (_replyingTo != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text('回复 @${_replyingTo!.author.nickname}', style: const TextStyle(color: Color(0xFFe94560), fontSize: 13)),
+                                ),
+                                GestureDetector(
+                                  onTap: _cancelReply,
+                                  child: const Icon(Icons.close, color: Colors.white38, size: 18),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: _sendComment,
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: const BoxDecoration(color: Color(0xFFe94560), shape: BoxShape.circle),
-                            child: _sendingComment ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send, color: Colors.white, size: 18),
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _commentCtrl,
+                                style: const TextStyle(color: Colors.white),
+                                decoration: InputDecoration(
+                                  hintText: _replyingTo != null ? '回复...' : '写评论...',
+                                  hintStyle: const TextStyle(color: Colors.white38),
+                                  filled: true,
+                                  fillColor: Colors.white10,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: _sendComment,
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: const BoxDecoration(color: Color(0xFFe94560), shape: BoxShape.circle),
+                                child: _sendingComment ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send, color: Colors.white, size: 18),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -230,23 +323,113 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  Widget _buildCommentItem(Comment c, GameProvider provider) {
+  Widget _buildCommentItem(Comment c, GameProvider provider, int index) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildAvatar(c.author.avatar, provider, size: 32),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(c.author.nickname, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text(c.content, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                    const SizedBox(height: 6),
+                    // 互动栏：点赞 + 回复
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => _toggleCommentLike(c),
+                          child: Row(
+                            children: [
+                              Icon(c.liked ? Icons.favorite : Icons.favorite_border, color: c.liked ? Colors.red : Colors.white38, size: 14),
+                              const SizedBox(width: 3),
+                              Text('${c.likeCount}', style: TextStyle(color: c.liked ? Colors.red : Colors.white38, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        GestureDetector(
+                          onTap: () => _startReply(c),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.reply, color: Colors.white38, size: 14),
+                              SizedBox(width: 3),
+                              Text('回复', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(c.createdAt, style: const TextStyle(color: Colors.white24, fontSize: 10)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // 嵌套回复
+          if (c.replies.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              margin: const EdgeInsets.only(left: 42),
+              padding: const EdgeInsets.only(left: 10, top: 8, bottom: 4),
+              decoration: const BoxDecoration(border: Border(left: BorderSide(color: Colors.white12, width: 2))),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: c.replies.map((r) => _buildReplyItem(r, provider, index)).toList(),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplyItem(Comment r, GameProvider provider, int parentIndex) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildAvatar(c.author.avatar, provider, size: 32),
-          const SizedBox(width: 10),
+          _buildAvatar(r.author.avatar, provider, size: 24),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(c.author.nickname, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                Text(r.author.nickname, style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 2),
+                Text(r.content, style: const TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 4),
-                Text(c.content, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                const SizedBox(height: 4),
-                Text(c.createdAt, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _toggleCommentLike(r, isReply: true, parentIndex: parentIndex),
+                      child: Row(
+                        children: [
+                          Icon(r.liked ? Icons.favorite : Icons.favorite_border, color: r.liked ? Colors.red : Colors.white24, size: 12),
+                          const SizedBox(width: 3),
+                          Text('${r.likeCount}', style: TextStyle(color: r.liked ? Colors.red : Colors.white24, fontSize: 10)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () => _startReply(r),
+                      child: const Text('回复', style: TextStyle(color: Colors.white24, fontSize: 10)),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(r.createdAt, style: const TextStyle(color: Colors.white12, fontSize: 9)),
+                  ],
+                ),
               ],
             ),
           ),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/models.dart';
 import '../services/game_provider.dart';
+import '../widgets/video_player_widget.dart';
 import 'post_detail_screen.dart';
 import 'create_post_screen.dart';
 
@@ -179,11 +180,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
             // 视频
             if (post.video != null && post.video!.isNotEmpty) ...[
               const SizedBox(height: 10),
-              Container(
-                height: 180,
-                decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(8)),
-                child: const Center(child: Icon(Icons.play_circle_fill, color: Colors.white54, size: 50)),
-              ),
+              VideoPlayerWidget(videoUrl: provider.api.fullUrl(post.video!), height: 180),
             ],
             const SizedBox(height: 10),
             // 互动栏

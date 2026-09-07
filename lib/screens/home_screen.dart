@@ -8,6 +8,7 @@ import 'more_screen.dart';
 import 'shop_screen.dart';
 import 'community_screen.dart';
 import 'profile_screen.dart';
+import 'chat_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const MoreScreen(),
     const ShopScreen(),
     const CommunityScreen(),
+    const ChatListScreen(),
     const ProfileScreen(),
   ];
 
@@ -152,6 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
               BottomNavigationBarItem(icon: Icon(Icons.explore), label: '仙途'),
               BottomNavigationBarItem(icon: Icon(Icons.store), label: '坊市'),
               BottomNavigationBarItem(icon: Icon(Icons.forum), label: '圈子'),
+              BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: '消息'),
               BottomNavigationBarItem(icon: Icon(Icons.person), label: '我的'),
             ],
           ),

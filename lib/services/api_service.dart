@@ -338,12 +338,23 @@ class ApiService {
     return (jsonDecode(res.body)['comments'] as List).map((e) => Comment.fromJson(e)).toList();
   }
 
-  Future<Map<String, dynamic>> addComment(int postId, String content) async {
+  Future<Map<String, dynamic>> addComment(int postId, String content, {int? parentId}) async {
     await _loadToken();
+    final body = <String, dynamic>{'content': content};
+    if (parentId != null) body['parentId'] = parentId;
     final res = await http.post(
       Uri.parse('$baseUrl/api/posts/$postId/comments'),
       headers: _headers,
-      body: jsonEncode({'content': content}),
+      body: jsonEncode(body),
+    );
+    return jsonDecode(res.body);
+  }
+
+  Future<Map<String, dynamic>> toggleCommentLike(int postId, int commentId) async {
+    await _loadToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/posts/$postId/comments/$commentId/like'),
+      headers: _headers,
     );
     return jsonDecode(res.body);
   }
@@ -389,6 +400,131 @@ class ApiService {
       return data['announcement'];
     } catch (_) {
       return null;
+    }
+  }
+
+  // ===== 好友系统 =====
+  Future<List<SearchUser>> searchUsers(String keyword) async {
+    await _loadToken();
+    final res = await http.get(Uri.parse('$baseUrl/api/friends/search?keyword=${Uri.encodeComponent(keyword)}'), headers: _headers);
+    return (jsonDecode(res.body)['users'] as List).map((e) => SearchUser.fromJson(e)).toList();
+  }
+
+  Future<Map<String, dynamic>> sendFriendRequest(int userId) async {
+    await _loadToken();
+    final res = await http.post(Uri.parse('$baseUrl/api/friends/request/$userId'), headers: _headers);
+    return jsonDecode(res.body);
+  }
+
+  Future<List<FriendRequest>> getFriendRequests() async {
+    await _loadToken();
+    final res = await http.get(Uri.parse('$baseUrl/api/friends/requests'), headers: _headers);
+    return (jsonDecode(res.body)['requests'] as List).map((e) => FriendRequest.fromJson(e)).toList();
+  }
+
+  Future<Map<String, dynamic>> acceptFriendRequest(int requestId) async {
+    await _loadToken();
+    final res = await http.post(Uri.parse('$baseUrl/api/friends/accept/$requestId'), headers: _headers);
+    return jsonDecode(res.body);
+  }
+
+  Future<Map<String, dynamic>> rejectFriendRequest(int requestId) async {
+    await _loadToken();
+    final res = await http.post(Uri.parse('$baseUrl/api/friends/reject/$requestId'), headers: _headers);
+    return jsonDecode(res.body);
+  }
+
+  Future<List<UserBrief>> getFriends() async {
+    await _loadToken();
+    final res = await http.get(Uri.parse('$baseUrl/api/friends'), headers: _headers);
+    return (jsonDecode(res.body)['friends'] as List).map((e) => UserBrief.fromJson(e)).toList();
+  }
+
+  Future<Map<String, dynamic>> deleteFriend(int userId) async {
+    await _loadToken();
+    final res = await http.delete(Uri.parse('$baseUrl/api/friends/$userId'), headers: _headers);
+    return jsonDecode(res.body);
+  }
+
+  // ===== 聊天系统 =====
+  Future<List<Conversation>> getConversations() async {
+    await _loadToken();
+    final res = await http.get(Uri.parse('$baseUrl/api/chat/conversations'), headers: _headers);
+    return (jsonDecode(res.body)['conversations'] as List).map((e) => Conversation.fromJson(e)).toList();
+  }
+
+  Future<List<ChatMessage>> getMessages(int userId) async {
+    await _loadToken();
+    final res = await http.get(Uri.parse('$baseUrl/api/chat/messages/$userId'), headers: _headers);
+    return (jsonDecode(res.body)['messages'] as List).map((e) => ChatMessage.fromJson(e)).toList();
+  }
+
+  Future<ChatMessage> sendMessage(int receiverId, String content) async {
+    await _loadToken();
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/chat/send'),
+      headers: _headers,
+      body: jsonEncode({'receiverId': receiverId, 'content': content}),
+    );
+    return ChatMessage.fromJson(jsonDecode(res.body)['message']);
+  }
+
+  Future<ChatMessage> sendVoiceMessage(int receiverId, File voiceFile, {int duration = 0, String? mimeType}) async {
+    await _loadToken();
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/chat/send-voice'));
+    request.headers['Authorization'] = 'Bearer $_token';
+    request.fields['receiverId'] = receiverId.toString();
+    request.fields['duration'] = duration.toString();
+    request.files.add(await http.MultipartFile.fromPath(
+      'voice',
+      voiceFile.path,
+      contentType: _audioMediaType(voiceFile.path, mimeType: mimeType),
+    ));
+    final streamed = await request.send();
+    final res = await http.Response.fromStream(streamed);
+    return ChatMessage.fromJson(jsonDecode(res.body)['message']);
+  }
+
+  Future<ChatMessage> sendImageMessage(int receiverId, File imageFile, {String? mimeType}) async {
+    await _loadToken();
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/chat/send-image'));
+    request.headers['Authorization'] = 'Bearer $_token';
+    request.fields['receiverId'] = receiverId.toString();
+    request.files.add(await http.MultipartFile.fromPath(
+      'image',
+      imageFile.path,
+      contentType: _imageMediaType(imageFile.path, mimeType: mimeType),
+    ));
+    final streamed = await request.send();
+    final res = await http.Response.fromStream(streamed);
+    return ChatMessage.fromJson(jsonDecode(res.body)['message']);
+  }
+
+  Future<ChatMessage> sendVideoMessage(int receiverId, File videoFile, {String? mimeType}) async {
+    await _loadToken();
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/chat/send-video'));
+    request.headers['Authorization'] = 'Bearer $_token';
+    request.fields['receiverId'] = receiverId.toString();
+    request.files.add(await http.MultipartFile.fromPath(
+      'video',
+      videoFile.path,
+      contentType: _videoMediaType(videoFile.path, mimeType: mimeType),
+    ));
+    final streamed = await request.send();
+    final res = await http.Response.fromStream(streamed);
+    return ChatMessage.fromJson(jsonDecode(res.body)['message']);
+  }
+
+  MediaType? _audioMediaType(String filePath, {String? mimeType}) {
+    if (mimeType != null) return MediaType.parse(mimeType);
+    final ext = filePath.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'm4a': return MediaType('audio', 'mp4');
+      case 'mp3': return MediaType('audio', 'mpeg');
+      case 'wav': return MediaType('audio', 'wav');
+      case 'aac': return MediaType('audio', 'aac');
+      case 'amr': return MediaType('audio', 'amr');
+      default: return MediaType('audio', 'mpeg');
     }
   }
 }
